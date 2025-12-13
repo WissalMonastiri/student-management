@@ -10,8 +10,8 @@ pipeline {
         maven 'M2_HOME'
     }
 
-    options {
-        timeout(time: 1, unit: 'SECONDS')   // Timeout de 1 seconde
+   options {
+    timeout(time: 5, unit: 'MINUTES')
     }
 
     environment {
@@ -46,3 +46,4 @@ pipeline {
         }
     }
 }
+
