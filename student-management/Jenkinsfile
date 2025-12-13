@@ -21,8 +21,7 @@ pipeline {
 
         stage('Code Checkout') {
             steps {
-                git branch: 'main',
-                    url: 'https://github.com/WissalMonastiri/student-management.git'
+                git(branch: 'main', url: 'https://github.com/WissalMonastiri/student-management.git')
             }
         }
 
@@ -45,3 +44,4 @@ pipeline {
         }
     }
 }
+
