@@ -1,50 +1,32 @@
 pipeline {
-    agent {
-    node {
-        label ''
-         }
-    }
-
+    agent any
 
     tools {
         maven 'M2_HOME'
     }
 
-    options {
-        timeout(time: 5, unit: 'MINUTES')
-    }
-
-    environment {
-        APP_ENV = "DEV"
-    }
-
     stages {
-
-        stage('Code Checkout') {
+        stage('Checkout') {
             steps {
                 git(branch: 'main', url: 'https://github.com/WissalMonastiri/student-management.git')
             }
         }
 
-        stage('Code Build') {
+        stage('Build') {
             steps {
-                sh 'mvn clean package -DskipTests -Dmaven.repo.local=/var/lib/jenkins/.m2'
+                dir('student-management') {
+                    sh 'mvn clean package -DskipTests'
+                }
             }
         }
     }
 
     post {
-        always {
-            echo "====== always ======"
-        }
         success {
-            echo "===== pipeline executed successfully ====="
+            echo 'BUILD SUCCESS 🎉'
         }
         failure {
-            echo "====== pipeline execution failed ======"
+            echo 'BUILD FAILED ❌'
         }
     }
 }
-
-
-
