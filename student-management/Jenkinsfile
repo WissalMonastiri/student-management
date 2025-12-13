@@ -1,9 +1,10 @@
 pipeline {
     agent {
-        node {
-            label 'build'
-        }
+    node {
+        label ''
+         }
     }
+
 
     tools {
         maven 'M2_HOME'
@@ -44,4 +45,5 @@ pipeline {
         }
     }
 }
+
 
