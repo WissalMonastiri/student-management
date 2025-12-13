@@ -28,7 +28,7 @@ pipeline {
 
         stage('Code Build') {
             steps {
-                sh 'mvn clean package -DskipTests -Dmaven.repo.local=/var/jenkins_home/.m2'
+                sh 'mvn clean package -DskipTests -Dmaven.repo.local=/var/lib/jenkins/.m2'
             }
         }
     }
@@ -45,5 +45,6 @@ pipeline {
         }
     }
 }
+
 
 
