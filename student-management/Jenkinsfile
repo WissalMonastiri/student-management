@@ -1,51 +1,65 @@
 pipeline {
     agent any
-    
+
+    environment {
+        IMAGE_NAME = "wissal93/student-management"
+        IMAGE_TAG  = "1.0"
+    }
+
     stages {
-        stage('Checkout') {
+
+        stage('Checkout Code') {
             steps {
                 git 'https://github.com/WissalMonastiri/student-management.git'
             }
         }
-        
-        stage('Build') {
+
+        stage('Build Maven') {
             steps {
                 dir('student-management') {
                     sh '''
                         chmod +x mvnw
                         ./mvnw clean package -DskipTests
-                        echo "✅ APPLICATION CONSTRUITE!"
-                        echo "📦 JAR: target/student-management-*.jar"
+                        echo "✅ Maven build terminé"
                     '''
                 }
             }
         }
-        
-        stage('Manual Steps') {
+
+        stage('Build Docker Image') {
             steps {
-                script {
-                    echo """
-                    ⚠️ MANUEL - Exécutez CES commandes SUR LE SERVEUR:
-                    
-                    1. Ouvrez un terminal sur le serveur Jenkins
-                    2. Exécutez:
-                    
-                    cd /var/lib/jenkins/workspace/Pipeline\\ script/student-management
-                    docker build -t wissal93/student-management:1.0 .
-                    docker login -u wissal93
-                    docker push wissal93/student-management:1.0
-                    
-                    📍 L'application est déjà construite.
-                    """
+                dir('student-management') {
+                    sh '''
+                        echo "🐳 Construction image Docker..."
+                        docker build -t $IMAGE_NAME:$IMAGE_TAG .
+                    '''
+                }
+            }
+        }
+
+        stage('Push Docker Image') {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub-credentials',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh '''
+                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                        docker push $IMAGE_NAME:$IMAGE_TAG
+                    '''
                 }
             }
         }
     }
-    
+
     post {
         success {
-            echo '✅ TERMINÉ! Exécutez les commandes Docker manuellement.'
+            echo '🎉 Pipeline terminée avec succès !'
             archiveArtifacts artifacts: 'student-management/target/*.jar', fingerprint: true
+        }
+        failure {
+            echo '❌ La pipeline a échoué'
         }
     }
 }
