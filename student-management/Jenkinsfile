@@ -8,7 +8,6 @@ pipeline {
     stages {
         stage('Checkout Code') {
             steps {
-                // On clone le dépôt
                 git branch: 'main', url: 'https://github.com/WissalMonastiri/student-management.git'
             }
         }
@@ -24,7 +23,7 @@ pipeline {
         stage('Set mvnw Permissions') {
             steps {
                 dir('student-management') {
-                    // Assurer que mvnw est exécutable dans ce workspace
+                    // On s'assure que mvnw est exécutable
                     sh 'chmod +x mvnw'
                 }
             }
