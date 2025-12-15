@@ -3,19 +3,28 @@ pipeline {
 
     environment {
         DOCKER_IMAGE = "wissal93/student-management:1.0"
+        // Utilisez une variable pour la version si nécessaire
+        IMAGE_TAG = "${env.BUILD_NUMBER}"
     }
 
     stages {
         stage('Checkout Code') {
             steps {
-                git branch: 'main', url: 'https://github.com/WissalMonastiri/student-management.git'
+                git branch: 'main', 
+                    url: 'https://github.com/WissalMonastiri/student-management.git',
+                    credentialsId: '' // Ajoutez un credentialsId si nécessaire
             }
         }
 
         stage('Verify Files') {
             steps {
                 dir('student-management') {
-                    sh 'ls -l'
+                    sh '''
+                        echo "=== Contenu du répertoire ==="
+                        ls -la
+                        echo "=== Vérification des permissions mvnw ==="
+                        ls -l mvnw
+                    '''
                 }
             }
         }
@@ -23,8 +32,11 @@ pipeline {
         stage('Set mvnw Permissions') {
             steps {
                 dir('student-management') {
-                    // On s'assure que mvnw est exécutable
-                    sh 'chmod +x mvnw'
+                    sh 'chmod +x mvnw || true'
+                    sh '''
+                        echo "=== Permissions après modification ==="
+                        ls -l mvnw
+                    '''
                 }
             }
         }
@@ -33,6 +45,31 @@ pipeline {
             steps {
                 dir('student-management') {
                     sh './mvnw clean package -DskipTests'
+                    sh '''
+                        echo "=== Fichier JAR généré ==="
+                        ls -lh target/*.jar
+                    '''
+                }
+            }
+        }
+
+        stage('Test Docker Availability') {
+            steps {
+                script {
+                    // Tester si Docker est disponible
+                    try {
+                        sh 'docker --version'
+                        echo "✅ Docker est disponible"
+                    } catch (Exception e) {
+                        echo "⚠️ Docker n'est pas disponible ou pas installé"
+                        echo "Installation de Docker..."
+                        // Installation Docker pour Ubuntu/Debian
+                        sh '''
+                            sudo apt-get update
+                            sudo apt-get install -y docker.io
+                            sudo usermod -aG docker jenkins || true
+                        '''
+                    }
                 }
             }
         }
@@ -40,26 +77,67 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 dir('student-management') {
-                    sh "docker build -t ${DOCKER_IMAGE} ."
+                    script {
+                        // Vérifier si Dockerfile existe
+                        def dockerfileExists = fileExists('Dockerfile')
+                        if (!dockerfileExists) {
+                            error("Dockerfile non trouvé!")
+                        }
+                        
+                        echo "Building Docker image: ${DOCKER_IMAGE}"
+                        
+                        // Construction de l'image avec tag optionnel
+                        sh """
+                            docker build -t ${DOCKER_IMAGE} .
+                            docker tag ${DOCKER_IMAGE} ${DOCKER_IMAGE}-${IMAGE_TAG}
+                        """
+                        
+                        // Lister les images créées
+                        sh 'docker images | grep student-management'
+                    }
                 }
             }
         }
 
         stage('Push Docker Image') {
             steps {
-                dir('student-management') {
-                    sh "docker push ${DOCKER_IMAGE}"
+                script {
+                    // Vérifier les credentials Docker Hub
+                    withCredentials([usernamePassword(
+                        credentialsId: 'docker-hub-credentials', // Créez ces credentials dans Jenkins
+                        usernameVariable: 'DOCKER_USERNAME',
+                        passwordVariable: 'DOCKER_PASSWORD'
+                    )]) {
+                        dir('student-management') {
+                            sh """
+                                echo \"\${DOCKER_PASSWORD}\" | docker login -u \"\${DOCKER_USERNAME}\" --password-stdin
+                                docker push ${DOCKER_IMAGE}
+                                docker push ${DOCKER_IMAGE}-${IMAGE_TAG}
+                            """
+                        }
+                    }
                 }
             }
         }
     }
 
     post {
+        always {
+            echo "=== Nettoyage ==="
+            sh 'docker logout || true'
+            
+            // Archivage des artefacts
+            archiveArtifacts artifacts: 'student-management/target/*.jar', fingerprint: true
+        }
         success {
             echo 'Pipeline terminée avec succès ✅'
+            // Notifications optionnelles
+            // emailext to: 'team@example.com', subject: "Build ${env.BUILD_NUMBER} réussi", body: "Détails: ${env.BUILD_URL}"
         }
         failure {
             echo 'La pipeline a échoué ❌'
+            // Notifications d'échec
+            // emailext to: 'admin@example.com', subject: "Build ${env.BUILD_NUMBER} échoué", body: "Détails: ${env.BUILD_URL}"
         }
     }
 }
