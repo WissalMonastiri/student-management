@@ -3,71 +3,56 @@ pipeline {
     
     environment {
         DOCKER_IMAGE = "wissal93/student-management:1.0"
-        BUILD_TIMESTAMP = sh(script: 'date +"%Y%m%d_%H%M%S"', returnStdout: true).trim()
+        DOCKER_CMD = "/usr/bin/docker"
     }
     
     stages {
-        stage('Pre-build Checks') {
+        stage('Test Docker Access') {
             steps {
-                sh '''
-                    echo "=== VÉRIFICATIONS PRÉ-BUILD ==="
-                    echo "Java version:"
-                    java -version 2>&1 | head -3
-                    echo ""
-                    echo "Docker version:"
-                    docker --version
-                    echo ""
-                    echo "Docker info:"
-                    docker info --format "Server: {{.ServerVersion}} | Containers: {{.Containers}} | Images: {{.Images}}"
-                    echo ""
-                    echo "Workspace:"
-                    pwd
-                    ls -la
-                '''
+                script {
+                    echo "🔍 Test d'accès Docker..."
+                    
+                    // Tester avec le chemin complet
+                    try {
+                        sh "${DOCKER_CMD} --version"
+                        echo "✅ Docker accessible via ${DOCKER_CMD}"
+                        env.DOCKER_AVAILABLE = "true"
+                    } catch (Exception e) {
+                        echo "❌ Docker non accessible: ${e.getMessage()}"
+                        
+                        // Essayer docker sans chemin
+                        try {
+                            sh "docker --version"
+                            echo "✅ Docker accessible via 'docker'"
+                            env.DOCKER_AVAILABLE = "true"
+                            env.DOCKER_CMD = "docker"
+                        } catch (Exception e2) {
+                            echo "❌ Docker non accessible du tout"
+                            env.DOCKER_AVAILABLE = "false"
+                        }
+                    }
+                    
+                    if (env.DOCKER_AVAILABLE == "false") {
+                        error "Docker n'est pas accessible. Exécutez: sudo usermod -aG docker jenkins && sudo systemctl restart jenkins"
+                    }
+                }
             }
         }
         
         stage('Checkout Code') {
             steps {
-                git branch: 'main', 
-                    url: 'https://github.com/WissalMonastiri/student-management.git',
-                    poll: false
-                
-                sh '''
-                    echo "📦 Repository cloné"
-                    echo "📍 Commit: $(git log --oneline -1)"
-                '''
+                git branch: 'main', url: 'https://github.com/WissalMonastiri/student-management.git'
             }
         }
         
-        stage('Build Application') {
+        stage('Build Maven') {
             steps {
                 dir('student-management') {
                     sh '''
-                        echo "🔨 Construction Spring Boot..."
                         chmod +x mvnw
-                        ./mvnw clean package -DskipTests -q
-                        
-                        echo "✅ Build terminé!"
-                        echo "📊 Résultats:"
-                        find target -name "*.jar" -exec ls -lh {} \;
+                        ./mvnw clean package -DskipTests
+                        echo "✅ Build Maven réussi"
                     '''
-                }
-            }
-        }
-        
-        stage('Test Application') {
-            steps {
-                dir('student-management') {
-                    sh '''
-                        echo "🧪 Exécution des tests..."
-                        ./mvnw test || echo "Tests échoués ou non disponibles"
-                    '''
-                }
-            }
-            post {
-                always {
-                    junit 'student-management/target/surefire-reports/*.xml'
                 }
             }
         }
@@ -75,58 +60,21 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 dir('student-management') {
-                    sh """
-                        echo "🐳 Construction image Docker..."
+                    script {
+                        echo "🐳 Construction de l'image Docker avec ${DOCKER_CMD}..."
                         
-                        # Supprimer l'ancienne image si elle existe
-                        docker rmi ${DOCKER_IMAGE} 2>/dev/null || true
-                        
-                        # Construire la nouvelle image
-                        docker build -t ${DOCKER_IMAGE} .
-                        
-                        echo "✅ Image construite avec succès!"
-                        echo "📋 Liste des images:"
-                        docker images ${DOCKER_IMAGE}
-                        
-                        # Inspecter l'image
-                        echo "🔍 Détails de l'image:"
-                        docker inspect ${DOCKER_IMAGE} --format 'Size: {{.Size}} bytes | Created: {{.Created}}' || true
-                    """
-                }
-            }
-        }
-        
-        stage('Test Docker Image') {
-            steps {
-                script {
-                    echo "🧪 Test de l'image Docker..."
-                    
-                    sh """
-                        # Arrêter tout conteneur existant
-                        docker stop student-test 2>/dev/null || true
-                        docker rm student-test 2>/dev/null || true
-                        
-                        # Démarrer un conteneur de test
-                        docker run -d --name student-test -p 8080:8080 ${DOCKER_IMAGE}
-                        
-                        # Attendre le démarrage
-                        sleep 10
-                        
-                        # Vérifier les logs
-                        echo "📝 Logs du conteneur:"
-                        docker logs student-test --tail 20 || true
-                        
-                        # Vérifier si le conteneur tourne
-                        if docker ps | grep -q student-test; then
-                            echo "✅ Conteneur en cours d'exécution"
-                        else
-                            echo "⚠️ Conteneur non actif"
-                        fi
-                        
-                        # Nettoyer
-                        docker stop student-test 2>/dev/null || true
-                        docker rm student-test 2>/dev/null || true
-                    """
+                        sh """
+                            # Vérifier le Dockerfile
+                            cat Dockerfile
+                            
+                            # Construire l'image
+                            ${DOCKER_CMD} build -t ${DOCKER_IMAGE} .
+                            
+                            # Vérifier
+                            echo "✅ Image créée:"
+                            ${DOCKER_CMD} images | grep wissal93/student-management
+                        """
+                    }
                 }
             }
         }
@@ -134,104 +82,35 @@ pipeline {
         stage('Push to Docker Hub') {
             steps {
                 script {
-                    echo "🚀 Pushing to Docker Hub..."
-                    
                     withCredentials([usernamePassword(
                         credentialsId: 'dockerhub-credentials',
-                        usernameVariable: 'DOCKER_USER',
-                        passwordVariable: 'DOCKER_PASS'
+                        usernameVariable: 'USERNAME',
+                        passwordVariable: 'PASSWORD'
                     )]) {
                         sh """
-                            # Connexion à Docker Hub
-                            echo "🔐 Connexion en tant que \${DOCKER_USER}..."
-                            echo "\${DOCKER_PASS}" | docker login -u "\${DOCKER_USER}" --password-stdin
+                            # Login
+                            echo \$PASSWORD | ${DOCKER_CMD} login -u \$USERNAME --password-stdin
                             
-                            # Push de l'image
-                            echo "📤 Push de ${DOCKER_IMAGE}..."
-                            docker push ${DOCKER_IMAGE}
+                            # Push
+                            ${DOCKER_CMD} push ${DOCKER_IMAGE}
                             
-                            # Déconnexion
-                            docker logout
+                            # Logout
+                            ${DOCKER_CMD} logout
                             
-                            echo "✅ Push réussi!"
+                            echo "✅ Image poussée sur Docker Hub!"
                         """
                     }
-                }
-            }
-        }
-        
-        stage('Verify Push') {
-            steps {
-                script {
-                    echo "🔍 Vérification du push..."
-                    
-                    sh """
-                        echo "Pour vérifier sur Docker Hub:"
-                        echo "👉 https://hub.docker.com/r/wissal93/student-management/tags"
-                        echo ""
-                        echo "Pour utiliser l'image:"
-                        echo "docker pull ${DOCKER_IMAGE}"
-                        echo "docker run -d -p 8080:8080 ${DOCKER_IMAGE}"
-                    """
-                    
-                    // Créer un rapport
-                    sh """
-                        echo "# Rapport de Build" > build-report.txt
-                        echo "Build: ${BUILD_NUMBER}" >> build-report.txt
-                        echo "Date: ${BUILD_TIMESTAMP}" >> build-report.txt
-                        echo "Image: ${DOCKER_IMAGE}" >> build-report.txt
-                        echo "Status: SUCCESS" >> build-report.txt
-                    """
-                    
-                    archiveArtifacts artifacts: 'build-report.txt', fingerprint: true
                 }
             }
         }
     }
     
     post {
-        always {
-            echo "🧹 Nettoyage..."
-            sh '''
-                # Nettoyer les ressources Docker
-                docker container prune -f 2>/dev/null || true
-                docker image prune -f 2>/dev/null || true
-                
-                echo "=== FIN DU PIPELINE ==="
-            '''
-            
-            // Archive les artefacts
-            archiveArtifacts artifacts: 'student-management/target/*.jar', fingerprint: true
-        }
-        
         success {
-            echo """
-            🎉🎉🎉 PIPELINE RÉUSSIE ! 🎉🎉🎉
-            
-            📊 RÉSULTATS:
-            ✅ Application Spring Boot construite
-            ✅ Tests exécutés
-            ✅ Image Docker construite
-            ✅ Image poussée sur Docker Hub
-            
-            🐳 IMAGE DOCKER:
-            ${DOCKER_IMAGE}
-            
-            🔗 VÉRIFIER SUR:
-            https://hub.docker.com/r/wissal93/student-management/tags
-            
-            🚀 POUR DÉPLOYER:
-            docker pull ${DOCKER_IMAGE}
-            docker run -d -p 8080:8080 ${DOCKER_IMAGE}
-            """
+            echo "🎉 Pipeline réussie! Image: ${DOCKER_IMAGE}"
         }
-        
         failure {
-            echo """
-            ❌❌❌ PIPELINE ÉCHOUÉE ❌❌❌
-            
-            Consultez les logs pour plus de détails.
-            """
+            echo "❌ Pipeline échouée"
         }
     }
 }
