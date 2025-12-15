@@ -1,49 +1,42 @@
 pipeline {
     agent any
     
-    environment {
-        DOCKER_IMAGE = "wissal93/student-management:1.0"
-    }
-    
     stages {
-        stage('Test Docker First') {
-            steps {
-                script {
-                    // Test DIRECT de Docker
-                    sh '''
-                        echo "=== TEST DOCKER ==="
-                        which docker
-                        docker --version
-                        echo "Docker test: OK"
-                    '''
-                }
-            }
-        }
-        
         stage('Checkout') {
             steps {
                 git 'https://github.com/WissalMonastiri/student-management.git'
             }
         }
         
-        stage('Build App') {
+        stage('Build') {
             steps {
                 dir('student-management') {
                     sh '''
+                        chmod +x mvnw
                         ./mvnw clean package -DskipTests
-                        echo "Build Java OK"
+                        echo "✅ APPLICATION CONSTRUITE!"
+                        echo "📦 JAR: target/student-management-*.jar"
                     '''
                 }
             }
         }
         
-        stage('Build Docker') {
+        stage('Manual Steps') {
             steps {
-                dir('student-management') {
-                    sh '''
-                        docker build -t wissal93/student-management:1.0 .
-                        echo "Docker build OK"
-                    '''
+                script {
+                    echo """
+                    ⚠️ MANUEL - Exécutez CES commandes SUR LE SERVEUR:
+                    
+                    1. Ouvrez un terminal sur le serveur Jenkins
+                    2. Exécutez:
+                    
+                    cd /var/lib/jenkins/workspace/Pipeline\\ script/student-management
+                    docker build -t wissal93/student-management:1.0 .
+                    docker login -u wissal93
+                    docker push wissal93/student-management:1.0
+                    
+                    📍 L'application est déjà construite.
+                    """
                 }
             }
         }
@@ -51,10 +44,8 @@ pipeline {
     
     post {
         success {
-            echo '✅ SUCCÈS!'
-        }
-        failure {
-            echo '❌ ÉCHEC'
+            echo '✅ TERMINÉ! Exécutez les commandes Docker manuellement.'
+            archiveArtifacts artifacts: 'student-management/target/*.jar', fingerprint: true
         }
     }
 }
