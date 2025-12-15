@@ -6,6 +6,7 @@ pipeline {
     }
 
     stages {
+
         stage('Checkout Code') {
             steps {
                 git branch: 'main',
@@ -13,8 +14,16 @@ pipeline {
             }
         }
 
+        stage('List Workspace') {
+            steps {
+                // Pour vérifier que pom.xml et Dockerfile sont là
+                sh 'ls -R'
+            }
+        }
+
         stage('Build Maven') {
             steps {
+                // Se placer dans le sous-dossier contenant le pom.xml
                 dir('student-management/student-management') {
                     sh 'mvn clean package -DskipTests'
                 }
@@ -23,6 +32,7 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
+                // Se placer dans le même dossier que le Dockerfile
                 dir('student-management/student-management') {
                     script {
                         docker.build("${env.DOCKER_IMAGE}")
@@ -34,6 +44,7 @@ pipeline {
         stage('Push Docker Image') {
             steps {
                 script {
+                    // Connexion à Docker Hub et push de l'image
                     docker.withRegistry('https://index.docker.io/v1/', 'dockerhub-credentials') {
                         docker.image("${env.DOCKER_IMAGE}").push()
                     }
