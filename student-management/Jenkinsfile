@@ -5,17 +5,47 @@ pipeline {
         maven 'M2_HOME'
     }
 
+    environment {
+        DOCKER_IMAGE = "wissal93/student-management:1.0"
+    }
+
     stages {
-        stage('Checkout') {
+        stage('Checkout Code') {
             steps {
-                git(branch: 'main', url: 'https://github.com/WissalMonastiri/student-management.git')
+                git branch: 'main',
+                    url: 'https://github.com/WissalMonastiri/student-management.git'
             }
         }
 
-        stage('Build') {
+        stage('Build Maven') {
             steps {
                 dir('student-management') {
                     sh 'mvn clean package -DskipTests'
+                }
+            }
+        }
+
+        stage('Build Docker Image') {
+    steps {
+        dir('student-management') {
+            sh 'docker build --pull -t $DOCKER_IMAGE .'
+        }
+    }
+}
+
+        stage('Push Docker Image') {
+            steps {
+                dir('student-management') {
+                    withCredentials([usernamePassword(
+                        credentialsId: 'dockerhub-credentials',
+                        usernameVariable: 'DOCKER_USER',
+                        passwordVariable: 'DOCKER_PASS'
+                    )]) {
+                        sh '''
+                            echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+                            docker push $DOCKER_IMAGE
+                        '''
+                    }
                 }
             }
         }
@@ -23,10 +53,11 @@ pipeline {
 
     post {
         success {
-            echo 'BUILD SUCCESS 🎉'
+            echo "Pipeline exécuté avec succès"
         }
         failure {
-            echo 'BUILD FAILED ❌'
+            echo "Pipeline échoué"
         }
     }
 }
+
