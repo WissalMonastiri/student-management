@@ -34,10 +34,12 @@ pipeline {
         }
 
         stage('Push Docker Image') {
-            steps {
-                // Correction de la syntaxe avecCredentials
-                withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', 
-                                                 usernameVariable: 'DOCKER_USER', 
-                                                 passwordVariable: 'DOCKER_PASS')]) {
-                    sh "echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin"
-                    sh "docker push
+    steps {
+        withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', 
+                                         usernameVariable: 'DOCKER_USER', 
+                                         passwordVariable: 'DOCKER_PASS')]) {
+            sh "echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin"
+            sh "docker push ${DOCKER_IMAGE}"  // <- la commande doit être sur UNE ligne
+        }
+    }
+}
