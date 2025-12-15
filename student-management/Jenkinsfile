@@ -1,64 +1,22 @@
 pipeline {
     agent any
 
-    environment {
-        DOCKER_IMAGE = "tonDockerHubUsername/student-management:1.0"
+    tools {
+        jdk 'JAVA_HOME'
+        maven 'M2_HOME'
     }
 
     stages {
-
-        stage('Checkout Code') {
+        stage('GIT') {
             steps {
-                git branch: 'main',
-                    url: 'https://github.com/WissalMonastiri/student-management.git'
+                git branch: 'main', url: 'https://github.com/WissalMonastiri/student-management.git',
             }
         }
 
-        stage('List Workspace') {
+        stage('Compile Stage') {
             steps {
-                // Pour vérifier que pom.xml et Dockerfile sont là
-                sh 'ls -R'
+                sh 'mvn clean compile'
             }
-        }
-
-        stage('Build Maven') {
-            steps {
-                // Se placer dans le sous-dossier contenant le pom.xml
-                dir('student-management/student-management') {
-                    sh 'mvn clean package -DskipTests'
-                }
-            }
-        }
-
-        stage('Build Docker Image') {
-            steps {
-                // Se placer dans le même dossier que le Dockerfile
-                dir('student-management/student-management') {
-                    script {
-                        docker.build("${env.DOCKER_IMAGE}")
-                    }
-                }
-            }
-        }
-
-        stage('Push Docker Image') {
-            steps {
-                script {
-                    // Connexion à Docker Hub et push de l'image
-                    docker.withRegistry('https://index.docker.io/v1/', 'dockerhub-credentials') {
-                        docker.image("${env.DOCKER_IMAGE}").push()
-                    }
-                }
-            }
-        }
-    }
-
-    post {
-        success {
-            echo 'Pipeline terminée avec succès ✅'
-        }
-        failure {
-            echo 'La pipeline a échoué ❌'
         }
     }
 }
