@@ -14,10 +14,19 @@ pipeline {
             }
         }
 
+        stage('Verify Files') {
+            steps {
+                dir('student-management') {
+                    // Vérifier que pom.xml et Dockerfile sont là
+                    sh 'ls -l'
+                }
+            }
+        }
+
         stage('Build Maven') {
             steps {
                 dir('student-management') {
-                    // Utilisation du wrapper Maven pour compiler
+                    // Utiliser le wrapper Maven pour compiler le projet
                     sh './mvnw clean package -DskipTests'
                 }
             }
