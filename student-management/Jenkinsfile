@@ -20,7 +20,7 @@ pipeline {
                     sh '''
                         chmod +x mvnw
                         ./mvnw clean package -DskipTests
-                        echo "✅ Maven build terminé"
+                        echo "✅ Build Maven terminé"
                     '''
                 }
             }
@@ -30,8 +30,8 @@ pipeline {
             steps {
                 dir('student-management') {
                     sh '''
-                        echo "🐳 Construction image Docker..."
-                        docker build -t $IMAGE_NAME:$IMAGE_TAG .
+                        echo "🐳 Docker build..."
+                        docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
                     '''
                 }
             }
@@ -46,7 +46,7 @@ pipeline {
                 )]) {
                     sh '''
                         echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-                        docker push $IMAGE_NAME:$IMAGE_TAG
+                        docker push ${IMAGE_NAME}:${IMAGE_TAG}
                     '''
                 }
             }
@@ -55,7 +55,7 @@ pipeline {
 
     post {
         success {
-            echo '🎉 Pipeline terminée avec succès !'
+            echo '🎉 Pipeline terminée avec succès'
             archiveArtifacts artifacts: 'student-management/target/*.jar', fingerprint: true
         }
         failure {
