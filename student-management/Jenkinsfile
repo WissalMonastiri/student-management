@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     tools {
-        maven 'M2_HOME' // Assure-toi que le Maven est bien configuré dans Jenkins
+        maven 'M2_HOME'
     }
 
     environment {
@@ -20,7 +20,6 @@ pipeline {
         stage('Build Maven') {
             steps {
                 dir('student-management') {
-                    // Skip les tests pour éviter l'échec du build
                     sh 'mvn clean package -DskipTests'
                 }
             }
@@ -36,4 +35,9 @@ pipeline {
 
         stage('Push Docker Image') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable_]()
+                // Correction de la syntaxe avecCredentials
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', 
+                                                 usernameVariable: 'DOCKER_USER', 
+                                                 passwordVariable: 'DOCKER_PASS')]) {
+                    sh "echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin"
+                    sh "docker push
