@@ -1,17 +1,62 @@
 pipeline {
     agent any
 
+    tools {
+        maven 'M2_HOME' // Assure-toi que Maven est configuré dans Jenkins sous ce nom
+    }
+
+    environment {
+        DOCKER_IMAGE = "wissal93/student-management:1.0"
+    }
+
     stages {
-        stage('Build') {
+        stage('Checkout Code') {
             steps {
-                echo 'Building...'
+                git branch: 'main',
+                    url: 'https://github.com/WissalMonastiri/student-management.git'
             }
         }
 
-        stage('Test') {
+        stage('Build Maven') {
             steps {
-                echo 'Testing...'
+                dir('student-management') {
+                    sh 'mvn clean package'
+                }
             }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    sh "docker build -t ${DOCKER_IMAGE} ."
+                }
+            }
+        }
+
+        stage('Push Docker Image') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', 
+                                                  usernameVariable: 'USERNAME', 
+                                                  passwordVariable: 'PASSWORD')]) {
+                    sh "echo $PASSWORD | docker login -u $USERNAME --password-stdin"
+                    sh "docker push ${DOCKER_IMAGE}"
+                }
+            }
+        }
+
+        stage('Deploy') {
+            steps {
+                echo "Deployment step - ajouter ton script ou commande de déploiement ici"
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Pipeline exécuté avec succès !'
+        }
+        failure {
+            echo 'Pipeline échoué.'
         }
     }
 }
