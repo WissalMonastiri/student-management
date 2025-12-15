@@ -3,53 +3,150 @@ pipeline {
     
     environment {
         DOCKER_IMAGE = "wissal93/student-management:1.0"
+        DOCKER_HUB_URL = "https://hub.docker.com/r/wissal93/student-management"
     }
     
     stages {
-        stage('Checkout') {
+        stage('Check Docker Login') {
             steps {
-                git 'https://github.com/WissalMonastiri/student-management.git'
+                script {
+                    // Tester la connexion Docker
+                    try {
+                        sh 'docker info'
+                        echo "✅ Docker est opérationnel"
+                    } catch (Exception e) {
+                        error "❌ Docker n'est pas accessible. Vérifiez les permissions."
+                    }
+                }
             }
         }
         
-        stage('Build') {
+        stage('Checkout') {
             steps {
+                git 'https://github.com/WissalMonastiri/student-management.git'
                 sh '''
-                    chmod +x mvnw
-                    ./mvnw clean package -DskipTests
+                    echo "📦 Repository cloné"
+                    echo "📍 Répertoire: $(pwd)"
+                    ls -la
                 '''
             }
         }
         
-        stage('Build Docker') {
+        stage('Build Maven') {
+            steps {
+                sh '''
+                    echo "🔨 Construction de l'application..."
+                    chmod +x mvnw
+                    ./mvnw clean package -DskipTests
+                    
+                    echo "✅ Build terminé"
+                    ls -lh target/*.jar
+                '''
+            }
+        }
+        
+        stage('Build Docker Image') {
             steps {
                 sh """
-                    # Construire l'image avec le tag 1.0
+                    echo "🐳 Construction de l'image Docker..."
+                    
+                    # Vérifier si l'image existe déjà localement
+                    if docker images | grep -q "wissal93/student-management.*1.0"; then
+                        echo "⚠️ Image existe déjà localement, suppression..."
+                        docker rmi wissal93/student-management:1.0 || true
+                    fi
+                    
+                    # Construire la nouvelle image
                     docker build -t ${DOCKER_IMAGE} .
                     
-                    # Vérifier
-                    echo "Image créée:"
+                    echo "✅ Image construite:"
                     docker images | grep wissal93/student-management
+                    
+                    # Tester l'image localement
+                    echo "🧪 Test local rapide..."
+                    docker run --rm ${DOCKER_IMAGE} --version || docker run --rm ${DOCKER_IMAGE} java -version || true
                 """
+            }
+        }
+        
+        stage('Test Docker Login') {
+            steps {
+                script {
+                    echo "🔐 Test de connexion à Docker Hub..."
+                    
+                    withCredentials([usernamePassword(
+                        credentialsId: 'dockerhub-credentials',
+                        usernameVariable: 'DOCKER_USER',
+                        passwordVariable: 'DOCKER_PASS'
+                    )]) {
+                        sh """
+                            # Tester la connexion
+                            echo "\${DOCKER_PASS}" | docker login -u "\${DOCKER_USER}" --password-stdin
+                            
+                            # Vérifier la connexion
+                            echo "✅ Connecté en tant que: \${DOCKER_USER}"
+                            
+                            # Déconnexion immédiate pour le test
+                            docker logout
+                        """
+                    }
+                }
             }
         }
         
         stage('Push to Docker Hub') {
             steps {
-                withCredentials([usernamePassword(
-                    credentialsId: 'dockerhub-credentials',
-                    usernameVariable: 'USERNAME',
-                    passwordVariable: 'PASSWORD'
-                )]) {
+                script {
+                    echo "🚀 Pushing to Docker Hub..."
+                    
+                    withCredentials([usernamePassword(
+                        credentialsId: 'dockerhub-credentials',
+                        usernameVariable: 'DOCKER_USER',
+                        passwordVariable: 'DOCKER_PASS'
+                    )]) {
+                        sh """
+                            # Connexion
+                            echo "\${DOCKER_PASS}" | docker login -u "\${DOCKER_USER}" --password-stdin
+                            echo "🔐 Connecté à Docker Hub"
+                            
+                            # Push de l'image
+                            echo "📤 Pushing ${DOCKER_IMAGE}..."
+                            docker push ${DOCKER_IMAGE}
+                            
+                            echo "✅ Push réussi!"
+                            
+                            # Vérifier rapidement
+                            echo "📋 Vérification:"
+                            docker images ${DOCKER_IMAGE}
+                            
+                            # Déconnexion
+                            docker logout
+                            echo "🔓 Déconnecté"
+                        """
+                    }
+                }
+            }
+        }
+        
+        stage('Verify on Docker Hub') {
+            steps {
+                script {
+                    echo "🔍 Vérification sur Docker Hub..."
+                    echo "Visitez: ${DOCKER_HUB_URL}"
+                    echo "Vous devriez voir le tag '1.0'"
+                    
+                    // Attendre un peu pour que Docker Hub se synchronise
+                    sleep 5
+                    
+                    // Essayer de pull pour vérifier
                     sh """
-                        # Login
-                        echo \$PASSWORD | docker login -u \$USERNAME --password-stdin
-                        
-                        # Push
-                        docker push ${DOCKER_IMAGE}
-                        
-                        # Logout
-                        docker logout
+                        echo "🔄 Tentative de pull pour vérifier..."
+                        if docker pull ${DOCKER_IMAGE} 2>/dev/null; then
+                            echo "🎉 SUCCÈS: L'image est disponible sur Docker Hub!"
+                        else
+                            echo "⚠️ ATTENTION: L'image n'est peut-être pas encore visible"
+                            echo "Cela peut prendre quelques minutes pour apparaître sur le site web"
+                        fi
                     """
                 }
             }
@@ -57,8 +154,39 @@ pipeline {
     }
     
     post {
+        always {
+            echo "🧹 Nettoyage..."
+            sh '''
+                # Nettoyer les conteneurs arrêtés
+                docker container prune -f 2>/dev/null || true
+                
+                echo "=== FIN DU PIPELINE ==="
+            '''
+        }
+        
         success {
-            echo "✅ Image ${DOCKER_IMAGE} poussée avec succès sur Docker Hub!"
+            echo """
+            🎉 PIPELINE RÉUSSIE!
+            
+            ✅ Image Docker: ${DOCKER_IMAGE}
+            ✅ Disponible sur: ${DOCKER_HUB_URL}
+            
+            Pour utiliser l'image:
+            docker pull ${DOCKER_IMAGE}
+            docker run -p 8080:8080 ${DOCKER_IMAGE}
+            """
+        }
+        
+        failure {
+            echo """
+            ❌ PIPELINE ÉCHOUÉE!
+            
+            Prochaines étapes:
+            1. Vérifiez vos credentials Docker Hub
+            2. Testez manuellement: docker login
+            3. Testez manuellement: docker push ${DOCKER_IMAGE}
+            4. Vérifiez les logs ci-dessus
+            """
         }
     }
 }
