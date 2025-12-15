@@ -1,31 +1,55 @@
 pipeline {
     agent any
+
     environment {
         DOCKER_IMAGE = "wissal93/student-management:1.0"
     }
+
     stages {
         stage('Checkout Code') {
             steps {
+                // On clone le dépôt dans le workspace
                 git branch: 'main', url: 'https://github.com/WissalMonastiri/student-management.git'
             }
         }
+
+        stage('Verify Files') {
+            steps {
+                // Vérifie la présence des fichiers importants
+                dir('student-management') {
+                    sh 'ls -l'
+                }
+            }
+        }
+
         stage('Build Maven') {
             steps {
-                dir('student-management') { // Assure-toi de pointer sur le bon sous-dossier
+                // On exécute Maven dans le dossier du projet
+                dir('student-management') {
                     sh './mvnw clean package -DskipTests'
                 }
             }
         }
+
         stage('Build Docker Image') {
             steps {
-                sh "docker build -t ${DOCKER_IMAGE} ."
+                dir('student-management') {
+                    sh "docker build -t ${DOCKER_IMAGE} ."
+                }
             }
         }
+
         stage('Push Docker Image') {
             steps {
-                sh "docker push ${DOCKER_IMAGE}"
+                dir('student-management') {
+                    sh "docker push ${DOCKER_IMAGE}"
+                }
             }
         }
     }
+
     post {
-        failure {
+        success {
+            echo 'Pipeline terminée avec succès ✅'
+        }
+        failu
