@@ -17,8 +17,7 @@ pipeline {
         stage('Verify Files') {
             steps {
                 dir('student-management') {
-                    // Vérifier que pom.xml et Dockerfile sont là
-                    sh 'ls -l'
+                    bat 'dir'
                 }
             }
         }
@@ -26,8 +25,7 @@ pipeline {
         stage('Build Maven') {
             steps {
                 dir('student-management') {
-                    // Utiliser le wrapper Maven pour compiler le projet
-                    sh './mvnw clean package -DskipTests'
+                    bat 'mvnw.cmd clean package -DskipTests'
                 }
             }
         }
