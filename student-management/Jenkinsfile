@@ -3,103 +3,47 @@ pipeline {
     
     environment {
         DOCKER_IMAGE = "wissal93/student-management:1.0"
-        DOCKER_CMD = "/usr/bin/docker"
     }
     
     stages {
-        stage('Test Docker Access') {
+        stage('Test Docker First') {
             steps {
                 script {
-                    echo "🔍 Test d'accès Docker..."
-                    
-                    // Tester avec le chemin complet
-                    try {
-                        sh "${DOCKER_CMD} --version"
-                        echo "✅ Docker accessible via ${DOCKER_CMD}"
-                        env.DOCKER_AVAILABLE = "true"
-                    } catch (Exception e) {
-                        echo "❌ Docker non accessible: ${e.getMessage()}"
-                        
-                        // Essayer docker sans chemin
-                        try {
-                            sh "docker --version"
-                            echo "✅ Docker accessible via 'docker'"
-                            env.DOCKER_AVAILABLE = "true"
-                            env.DOCKER_CMD = "docker"
-                        } catch (Exception e2) {
-                            echo "❌ Docker non accessible du tout"
-                            env.DOCKER_AVAILABLE = "false"
-                        }
-                    }
-                    
-                    if (env.DOCKER_AVAILABLE == "false") {
-                        error "Docker n'est pas accessible. Exécutez: sudo usermod -aG docker jenkins && sudo systemctl restart jenkins"
-                    }
-                }
-            }
-        }
-        
-        stage('Checkout Code') {
-            steps {
-                git branch: 'main', url: 'https://github.com/WissalMonastiri/student-management.git'
-            }
-        }
-        
-        stage('Build Maven') {
-            steps {
-                dir('student-management') {
+                    // Test DIRECT de Docker
                     sh '''
-                        chmod +x mvnw
-                        ./mvnw clean package -DskipTests
-                        echo "✅ Build Maven réussi"
+                        echo "=== TEST DOCKER ==="
+                        which docker
+                        docker --version
+                        echo "Docker test: OK"
                     '''
                 }
             }
         }
         
-        stage('Build Docker Image') {
+        stage('Checkout') {
+            steps {
+                git 'https://github.com/WissalMonastiri/student-management.git'
+            }
+        }
+        
+        stage('Build App') {
             steps {
                 dir('student-management') {
-                    script {
-                        echo "🐳 Construction de l'image Docker avec ${DOCKER_CMD}..."
-                        
-                        sh """
-                            # Vérifier le Dockerfile
-                            cat Dockerfile
-                            
-                            # Construire l'image
-                            ${DOCKER_CMD} build -t ${DOCKER_IMAGE} .
-                            
-                            # Vérifier
-                            echo "✅ Image créée:"
-                            ${DOCKER_CMD} images | grep wissal93/student-management
-                        """
-                    }
+                    sh '''
+                        ./mvnw clean package -DskipTests
+                        echo "Build Java OK"
+                    '''
                 }
             }
         }
         
-        stage('Push to Docker Hub') {
+        stage('Build Docker') {
             steps {
-                script {
-                    withCredentials([usernamePassword(
-                        credentialsId: 'dockerhub-credentials',
-                        usernameVariable: 'USERNAME',
-                        passwordVariable: 'PASSWORD'
-                    )]) {
-                        sh """
-                            # Login
-                            echo \$PASSWORD | ${DOCKER_CMD} login -u \$USERNAME --password-stdin
-                            
-                            # Push
-                            ${DOCKER_CMD} push ${DOCKER_IMAGE}
-                            
-                            # Logout
-                            ${DOCKER_CMD} logout
-                            
-                            echo "✅ Image poussée sur Docker Hub!"
-                        """
-                    }
+                dir('student-management') {
+                    sh '''
+                        docker build -t wissal93/student-management:1.0 .
+                        echo "Docker build OK"
+                    '''
                 }
             }
         }
@@ -107,10 +51,10 @@ pipeline {
     
     post {
         success {
-            echo "🎉 Pipeline réussie! Image: ${DOCKER_IMAGE}"
+            echo '✅ SUCCÈS!'
         }
         failure {
-            echo "❌ Pipeline échouée"
+            echo '❌ ÉCHEC'
         }
     }
 }
