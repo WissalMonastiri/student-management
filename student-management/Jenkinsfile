@@ -8,23 +8,30 @@ pipeline {
     stages {
         stage('Checkout Code') {
             steps {
-                // On clone le dépôt dans le workspace
+                // On clone le dépôt
                 git branch: 'main', url: 'https://github.com/WissalMonastiri/student-management.git'
             }
         }
 
         stage('Verify Files') {
             steps {
-                // Vérifie la présence des fichiers importants
                 dir('student-management') {
                     sh 'ls -l'
                 }
             }
         }
 
+        stage('Set mvnw Permissions') {
+            steps {
+                dir('student-management') {
+                    // Assurer que mvnw est exécutable dans ce workspace
+                    sh 'chmod +x mvnw'
+                }
+            }
+        }
+
         stage('Build Maven') {
             steps {
-                // On exécute Maven dans le dossier du projet
                 dir('student-management') {
                     sh './mvnw clean package -DskipTests'
                 }
@@ -52,4 +59,8 @@ pipeline {
         success {
             echo 'Pipeline terminée avec succès ✅'
         }
-        failu
+        failure {
+            echo 'La pipeline a échoué ❌'
+        }
+    }
+}
