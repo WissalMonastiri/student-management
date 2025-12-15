@@ -9,13 +9,12 @@ pipeline {
         DOCKER_IMAGE = "wissal93/student-management:1.0"
     }
 
-    stages {
-        stage('Checkout Code') {
-            steps {
-                git branch: 'main',
-                    url: 'https://github.com/WissalMonastiri/student-management.git'
-            }
-        }
+   stage('Checkout Code') {
+    steps {
+        checkout scm
+    }
+}
+
 
         stage('Build Maven') {
             steps {
@@ -60,4 +59,5 @@ pipeline {
         }
     }
 }
+
 
