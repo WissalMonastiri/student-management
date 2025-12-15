@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     tools {
-        maven 'M2_HOME'
+        maven 'M2_HOME' // nom de ton Maven dans Jenkins
     }
 
     environment {
@@ -27,19 +27,39 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                dir('student-management') {
-                    sh "docker build -t ${DOCKER_IMAGE} ."
-                }
+                sh "docker build -t ${DOCKER_IMAGE} ."
             }
         }
 
         stage('Push Docker Image') {
-    steps {
-        withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', 
-                                         usernameVariable: 'DOCKER_USER', 
-                                         passwordVariable: 'DOCKER_PASS')]) {
-            sh "echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin"
-            sh "docker push ${DOCKER_IMAGE}"  // <- la commande doit être sur UNE ligne
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', 
+                                                 usernameVariable: 'DOCKER_USER', 
+                                                 passwordVariable: 'DOCKER_PASS')]) {
+                    sh """
+                        echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+                        docker push ${DOCKER_IMAGE}
+                    """
+                }
+            }
+        }
+
+        stage('Deploy') {
+            steps {
+                echo "Déploiement à configurer selon ton environnement"
+            }
+        }
+    }
+
+    post {
+        always {
+            echo 'Pipeline terminé'
+        }
+        success {
+            echo 'Pipeline réussi'
+        }
+        failure {
+            echo 'Pipeline échoué'
         }
     }
 }
