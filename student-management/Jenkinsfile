@@ -1,63 +1,17 @@
 pipeline {
     agent any
 
-    tools {
-        maven 'M2_HOME'
-    }
-
-    environment {
-        DOCKER_IMAGE = "wissal93/student-management:1.0"
-    }
-
-   stage('Checkout Code') {
-    steps {
-        checkout scm
-    }
-}
-
-
-        stage('Build Maven') {
+    stages {
+        stage('Build') {
             steps {
-                dir('student-management') {
-                    sh 'mvn clean package -DskipTests'
-                }
+                echo 'Building...'
             }
         }
 
-        stage('Build Docker Image') {
-    steps {
-        dir('student-management') {
-            sh 'docker build --pull -t $DOCKER_IMAGE .'
-        }
-    }
-}
-
-        stage('Push Docker Image') {
+        stage('Test') {
             steps {
-                dir('student-management') {
-                    withCredentials([usernamePassword(
-                        credentialsId: 'dockerhub-credentials',
-                        usernameVariable: 'DOCKER_USER',
-                        passwordVariable: 'DOCKER_PASS'
-                    )]) {
-                        sh '''
-                            echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
-                            docker push $DOCKER_IMAGE
-                        '''
-                    }
-                }
+                echo 'Testing...'
             }
         }
     }
-
-    post {
-        success {
-            echo "Pipeline exécuté avec succès"
-        }
-        failure {
-            echo "Pipeline échoué"
-        }
-    }
 }
-
-
